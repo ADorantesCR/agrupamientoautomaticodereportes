@@ -1,0 +1,68 @@
+import pandas as pd
+import re
+from nltk.corpus import stopwords
+from multiprocessing import Pool
+from collections import Counter
+
+ruta_archivo = '/content/drive/MyDrive/agrupamiento automatico de reportes ambientales/Notas (15).xlsx'
+
+df = pd.read_excel(ruta_archivo)
+
+stopwords_nltk = set(stopwords.words('spanish'))
+
+# Función para limpiar el texto de una celda
+def limpiar_texto(texto):
+    texto = texto.lower()
+    texto = re.sub(r'[^a-zA-Z\sáéíóúüñ]', '', texto, re.I)
+    palabras = texto.split()
+    palabras = [palabra for palabra in palabras if palabra not in stopwords_nltk]
+    texto_limpio = ' '.join(palabras)
+    return texto_limpio
+
+
+# Función para aplicar la limpieza de texto en paralelo
+def limpiar_columna(columna):
+    with Pool() as pool:
+        return pool.map(limpiar_texto, columna)
+
+# Procesar las columnas "texto" y "encabezado" en paralelo
+df['texto'] = limpiar_columna(df['texto'])
+df['encabezado'] = limpiar_columna(df['encabezado'])
+
+# Guardar el archivo procesado en un archivo Excel
+ruta_archivo_procesado = '/content/drive/MyDrive/agrupamiento automatico de reportes ambientales/noticias_procesadas.xlsx'
+df.to_excel(ruta_archivo_procesado, index=False)
+
+print('Archivo procesado guardado exitosamente')
+
+# Leer el archivo procesado
+df_procesado = pd.read_excel(ruta_archivo_procesado)
+
+# Seleccionar solo las filas con "Vida Silvestre" en la columna "subArea"
+df_vida_silvestre = df_procesado[df_procesado['subArea'] == 'Vida Silvestre']
+
+# Escribir las filas seleccionadas en una nueva hoja del mismo archivo
+with pd.ExcelWriter(ruta_archivo_procesado, engine='openpyxl', mode='a') as writer:
+    df_vida_silvestre.to_excel(writer, sheet_name='Vida Silvestre', index=False)
+
+print('Filas con "Vida Silvestre" en la columna "subArea" guardadas exitosamente en una nueva hoja del archivo procesado.')
+
+# Leer el archivo de salida generado anteriormente
+df = pd.read_excel(ruta_archivo_procesado, sheet_name='Vida Silvestre')
+
+# Extraer todas las palabras de la columna 'encabezado'
+palabras = ' '.join(df['encabezado'].astype(str)).split()
+
+
+# Contar la frecuencia de cada palabra
+frecuencias = Counter(palabras)
+
+# Ordenar las palabras por frecuencia descendente
+palabras_ordenadas = sorted(frecuencias.items(), key=lambda x: x[1], reverse=True)
+
+# Guardar el resultado en otra hoja del mismo archivo
+df_palabras_ordenadas = pd.DataFrame(palabras_ordenadas, columns=['Palabra', 'Frecuencia'])
+with pd.ExcelWriter(ruta_archivo_procesado, mode='a') as writer:
+    df_palabras_ordenadas.to_excel(writer, sheet_name='Palabras ordenadas', index=False)
+
+print('Palabras ordenadas guardadas exitosamente')
